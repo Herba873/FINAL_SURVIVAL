@@ -1,0 +1,1766 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>판타지 카드 배틀</title>
+
+  <style>
+
+.card.magic {
+  border-color: #a29bfe;
+  background: linear-gradient(135deg, #302b63, #362952);
+}
+
+.death-warning {
+  margin-top: 5px;
+  padding: 4px 8px;
+  color: white;
+  background: #8b0000;
+  border: 1px solid #ff4d4d;
+  border-radius: 6px;
+  font-weight: bold;
+  text-align: center;
+  animation: deathBlink 0.5s infinite alternate;
+}
+.money-warning {
+  margin-top: 5px;
+  padding: 4px 8px;
+  color: white;
+  background: #8a5a00;
+  border: 1px solid #ffd166;
+  border-radius: 6px;
+  font-weight: bold;
+  text-align: center;
+  animation: moneyBlink 0.5s infinite alternate;
+}
+
+@keyframes moneyBlink {
+  from {
+    opacity: 0.55;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes deathBlink {
+  from {
+    opacity: 0.55;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #14111f;
+      color: white;
+    }
+
+    header {
+      padding: 14px;
+      text-align: center;
+      background: #241b35;
+      border-bottom: 2px solid #5b3f8c;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 25px;
+    }
+
+    button,
+    input,
+    select {
+      margin: 4px;
+      padding: 9px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    button {
+      background: #7c4dff;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #9b75ff;
+    }
+
+    button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+
+    input[type="number"] {
+      width: 75px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .join-panel {
+      max-width: 520px;
+      margin: 40px auto;
+      padding: 22px;
+      text-align: center;
+      background: #241b35;
+      border: 1px solid #5b3f8c;
+      border-radius: 14px;
+    }
+
+    .game-layout {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 12px;
+      min-height: calc(100vh - 70px);
+      padding: 12px;
+    }
+
+    .main-area {
+      display: grid;
+      grid-template-rows: auto 1fr 240px;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .side-area,
+    .panel {
+      padding: 12px;
+      background: #241b35;
+      border: 1px solid #5b3f8c;
+      border-radius: 12px;
+    }
+
+    .side-area {
+      overflow-y: auto;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .turn-count {
+      color: #ffd166;
+      font-size: 21px;
+      font-weight: bold;
+    }
+
+    .battle-board {
+      display: grid;
+      grid-template-columns: 1fr 70px 1fr;
+      gap: 10px;
+      min-height: 250px;
+    }
+
+    .action-zone {
+      min-height: 240px;
+      padding: 12px;
+      background: #1b1728;
+      border: 2px dashed #5b3f8c;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+
+    .action-zone:hover {
+      border-color: #ffd166;
+    }
+
+    .zone-title {
+      margin-bottom: 10px;
+      color: #ffd166;
+      text-align: center;
+      font-size: 21px;
+      font-weight: bold;
+    }
+
+    .arrow-zone {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #55efc4;
+      font-size: 42px;
+    }
+
+    .selected-list,
+    .player-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .selected-card,
+    .effect-box {
+      padding: 9px;
+      background: #302347;
+      border-radius: 9px;
+    }
+
+    .effect-box {
+      color: #55efc4;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .hand-area {
+      overflow-y: auto;
+      cursor: pointer;
+    }
+
+    .hand-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+      gap: 10px;
+    }
+
+    .card {
+      min-height: 150px;
+      padding: 10px;
+      background: #362952;
+      border: 2px solid #7e63b8;
+      border-radius: 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .card:hover {
+      border-color: #ffd166;
+      transform: translateY(-2px);
+    }
+
+    .card.selected {
+      outline: 3px solid #ffd166;
+      background: #443263;
+    }
+
+    .card.sell-target {
+      outline: 3px solid #e17055;
+    }
+
+    .card.attack { border-color: #ff7675; }
+    .card.plus { border-color: #74b9ff; }
+    .card.heal { border-color: #55efc4; }
+    .card.defense { border-color: #ffeaa7; }
+    .card.reflect { border-color: #fd79a8; }
+    .card.cleanse { border-color: white; }
+    .card.trade { border-color: #fab1a0; }
+    .card.sell { border-color: #e17055; }
+    .card.convert { border-color: #00cec9; }
+    .card.poisonItem { border-color: #b96cff; }
+    .card.cure { border-color: #7bed9f; }
+
+    .player-row {
+      padding: 9px;
+      background: #302347;
+      border: 1px solid #6d55a3;
+      border-radius: 9px;
+      cursor: pointer;
+    }
+
+    .player-row:hover {
+      border-color: #ffd166;
+    }
+
+    .player-row.target {
+      outline: 3px solid #55efc4;
+    }
+
+    .player-row.turn {
+      border-color: #ffd166;
+    }
+
+    .player-row.me {
+      background: #3a2b58;
+    }
+
+    .small {
+      color: #ccc;
+      font-size: 13px;
+    }
+
+    .price {
+      color: #ffeaa7;
+      font-weight: bold;
+    }
+
+    .hp {
+      color: #ff6b6b;
+      font-weight: bold;
+    }
+
+    .mp {
+      color: #74b9ff;
+      font-weight: bold;
+    }
+
+    .money {
+      color: #ffd166;
+      font-weight: bold;
+    }
+
+    .status {
+      color: #ff9ff3;
+      font-weight: bold;
+    }
+
+    .chat {
+      height: 180px;
+      overflow-y: auto;
+      padding: 10px;
+      background: #100d17;
+      border-radius: 9px;
+      font-size: 14px;
+    }
+
+    .chat-line {
+      margin-bottom: 4px;
+      word-break: break-word;
+    }
+
+    .chat-row {
+      display: flex;
+      gap: 4px;
+      margin-top: 7px;
+    }
+
+    .chat-row input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .trade-box {
+      margin-top: 8px;
+      padding: 10px;
+      background: #100d17;
+      border: 1px solid #fab1a0;
+      border-radius: 9px;
+    }
+
+    .resource-box {
+      display: flex;
+      gap: 5px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .warning {
+      color: #55efc4;
+      font-weight: bold;
+    }
+.status-icons {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+  max-width: 100%;
+}
+
+.status-icon {
+  width: 32px !important;
+  height: 32px !important;
+  max-width: 32px;
+  max-height: 32px;
+  object-fit: contain;
+  object-position: center;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #777;
+  background: #100d17;
+}
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>판타지 온라인 카드 배틀</h1>
+  </header>
+
+  <div id="joinPanel" class="join-panel">
+    <h2>게임 입장</h2>
+    <input id="nicknameInput" placeholder="닉네임">
+    <input id="roomInput" placeholder="룸 번호" value="room1">
+    <br>
+    <button onclick="joinGame()">입장</button>
+    <p class="small">
+      같은 룸 번호를 입력한 사람끼리 같은 방에 들어갑니다.
+    </p>
+  </div>
+
+  <div id="gamePanel" class="hidden">
+    <div class="game-layout">
+      <main class="main-area">
+        <section class="panel">
+          <div class="top-bar">
+            <div>
+              방: <b id="roomText"></b>
+              /
+              상태: <b id="statusText"></b>
+            </div>
+
+            <div class="turn-count">
+              턴 <span id="turnText">0</span>
+            </div>
+
+            <div>
+              <button id="joinButton" onclick="joinAsPlayer()">참가하기</button>
+              <button id="startButton" onclick="startGame()">게임 시작</button>
+              <button onclick="clearSelection()">선택 초기화</button>
+            </div>
+          </div>
+
+          <div id="tradeBox" class="trade-box hidden">
+            <div id="tradeInfo"></div>
+            <button id="buyButton" onclick="respondTrade(true)">구매</button>
+            <button id="declineButton" onclick="respondTrade(false)">거절</button>
+          </div>
+
+          <div id="winnerText" class="warning"></div>
+        </section>
+
+        <section class="battle-board">
+          <div class="action-zone" onclick="decideAction()">
+            <div id="leftTitle" class="zone-title">현재 턴</div>
+            <div id="leftList" class="selected-list"></div>
+          </div>
+
+          <div id="arrow" class="arrow-zone"></div>
+
+          <div class="action-zone" onclick="decideAction()">
+            <div id="rightTitle" class="zone-title">대상</div>
+            <div id="rightList" class="selected-list"></div>
+          </div>
+        </section>
+
+        <section class="panel hand-area" onclick="decideAction()">
+          <h2>내 카드</h2>
+          <p class="small">
+            카드 클릭: 선택 / 다시 클릭: 해제<br>
+            빈 공간 클릭: 결정
+          </p>
+          <div id="handGrid" class="hand-grid"></div>
+        </section>
+      </main>
+
+      <aside class="side-area">
+        <h2>순서 및 참가자</h2>
+        <div id="playerList" class="player-list"></div>
+
+        <hr>
+
+        <h3>대기자 / 관전자</h3>
+        <div id="spectatorList"></div>
+
+        <hr>
+
+        <h3>채팅</h3>
+        <div id="chatBox" class="chat"></div>
+
+        <div class="chat-row">
+          <input id="chatInput"
+                 placeholder="메시지 입력"
+                 onkeydown="if(event.key === 'Enter') sendChat()">
+          <button onclick="sendChat()">전송</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+    const socket = io();
+
+    let state = null;
+    let selectedTargetId = null;
+    let selectedAttackId = null;
+    let selectedPlusIds = new Set();
+    let selectedHealId = null;
+    let selectedTradeId = null;
+    let selectedSellId = null;
+    let selectedSoldCardId = null;
+    let selectedConvertId = null;
+    let selectedPoisonItemId = null;
+    let selectedCureId = null;
+    let selectedMagicId = null;
+    let selectedManaHealId = null;
+
+    let selectedDefenseIds = new Set();
+    let selectedReflectId = null;
+    let selectedCleanseId = null;
+
+    let convertValues = {
+      hp: 0,
+      mp: 0,
+      money: 0
+    };
+
+    function joinGame() {
+      const nickname = document.getElementById("nicknameInput").value.trim();
+      const roomCode = document.getElementById("roomInput").value.trim() || "room1";
+
+      socket.emit("joinGame", {
+        nickname,
+        roomCode
+      });
+
+      document.getElementById("joinPanel").classList.add("hidden");
+      document.getElementById("gamePanel").classList.remove("hidden");
+    }
+
+    function joinAsPlayer() {
+      socket.emit("joinAsPlayer");
+    }
+
+    function startGame() {
+      socket.emit("startGame");
+    }
+
+    function getMe() {
+      return state?.players.find(player => player.isMe);
+    }
+
+    function getPlayer(id) {
+      return state?.players.find(player => player.id === id);
+    }
+
+    function getHand() {
+      return getMe()?.hand || [];
+    }
+
+    function getCard(id) {
+      return getHand().find(card => card.id === id);
+    }
+
+    function isMyTurn() {
+      return state && state.currentTurnId === state.myId;
+    }
+
+    function isDefenseTurn() {
+      return state &&
+        state.pendingAttack &&
+        state.pendingAttack.defenderId === state.myId;
+    }
+
+    function elementName(element) {
+      const names = {
+        none: "무속성",
+        fire: "불",
+        water: "물",
+        earth: "땅",
+        wind: "바람",
+        light: "빛",
+        dark: "어둠"
+      };
+
+      return names[element] || "무속성";
+    }
+
+const statusIconInfo = {
+  "약독": {
+    file: "poison-weak.png",
+    description: "행동 후 HP 1 감소"
+  },
+  "중독": {
+    file: "poison-normal.png",
+    description: "행동 후 HP 2 감소"
+  },
+  "강독": {
+    file: "poison-strong.png",
+    description: "행동 후 HP 5 감소"
+  },
+  "약물중독": {
+    file: "poison-drug.png",
+    description: "행동 후 HP 5 회복"
+  },
+  "독살": {
+    file: "poison-death.png",
+    description: "독살 상태"
+  },
+  "눈부심": {
+    file: "dazzled.png",
+    description: "방어 카드 1장만 사용 가능"
+  },
+  "실명": {
+    file: "blind.png",
+    description: "상대를 직접 지정할 수 없음"
+  },
+  "취함": {
+    file: "drunk.png",
+    description: "새 카드가 다르게 보일 수 있음"
+  },
+  "미침": {
+    file: "crazy.png",
+    description: "행동 제어 이상"
+  },
+  "억까모드": {
+    file: "unlucky.png",
+    description: "범위 공격에 무조건 피격"
+  }
+};
+
+function renderStatusIcons(statusList) {
+  if (!statusList || statusList.length === 0) {
+    return `<span class="small">없음</span>`;
+  }
+
+  return `
+    <div class="status-icons">
+      ${statusList.map(status => {
+        const info = statusIconInfo[status];
+
+        if (!info) return "";
+
+        return `
+          <img
+  class="status-icon"
+  src="/images/status/${info.file}"
+  title="${status}: ${info.description}"
+  alt="${status}"
+  width="32"
+  height="32"
+  style="
+    width:32px;
+    height:32px;
+    max-width:32px;
+    max-height:32px;
+    object-fit:contain;
+    object-position:center;
+    display:block;
+  "
+>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+    function poisonName(stage) {
+      const names = {
+        weak: "약독",
+        normal: "중독",
+        strong: "강독",
+        drug: "약물중독",
+        death: "독살"
+      };
+      return names[stage] || stage;
+    }
+
+function getDeathWarning(playerId) {
+  if (!state || !state.deathWarnings) return null;
+
+  return state.deathWarnings.find(
+    warning => warning.playerId === playerId
+  );
+}
+
+function getMoneyWarning(playerId) {
+  if (!state || !state.moneyWarnings) return null;
+
+  return state.moneyWarnings.find(
+    warning => warning.playerId === playerId
+  );
+}
+
+    function cardTypeName(card) {
+if (card.type === "manaHeal") {
+  return "마나 회복 카드";
+}
+      if (card.type === "attack") {
+        return card.poisonStage ? "독 공격 카드" : "공격 카드";
+      }
+
+if (card.type === "magic") {
+  return "마법 카드";
+}
+
+      if (card.type === "plus") return "+카드";
+      if (card.type === "heal") return "회복 카드";
+      if (card.type === "defense") return "방어 카드";
+      if (card.type === "reflect") return "반사/튕기기 카드";
+      if (card.type === "cleanse") return "속성 제거 카드";
+      if (card.type === "trade") return "거래 카드";
+      if (card.type === "sell") return "판매 카드";
+      if (card.type === "convert") return "자원 재분배 카드";
+      if (card.type === "poisonItem") return "약물중독 아이템";
+      if (card.type === "cure") {
+        return card.cureType === "basic"
+          ? "해독 치료제"
+          : "만병통치약";
+      }
+
+      return card.type;
+    }
+
+    function cardDetail(card) {
+
+if (card.type === "magic") {
+  if (card.magicType === "plus") {
+    return `공격력 +${card.bonus} / MP ${card.mpCost}`;
+  }
+
+  if (card.magicType === "attack") {
+    return `공격력 ${card.damage} / MP ${card.mpCost}`;
+  }
+
+  if (card.magicType === "cure") {
+    return `모든 상태이상 치료 / MP ${card.mpCost}`;
+  }
+
+  return `MP ${card.mpCost} 소모`;
+}
+
+      if (card.type === "manaHeal") {
+  return `MP ${card.mana} 회복`;
+}
+      if (card.type === "attack") {
+        let text = `공격력 ${card.damage}`;
+
+        if (card.poisonStage) {
+          text += ` / ${poisonName(card.poisonStage)} 부여`;
+        }
+
+        return text;
+      }
+
+      if (card.type === "plus") {
+        return `공격력 +${card.bonus}`;
+      }
+
+      if (card.type === "heal") {
+        return `HP ${card.heal} 회복`;
+      }
+
+      if (card.type === "defense") {
+        return `방어 수치 ${card.defense}`;
+      }
+
+      if (card.type === "reflect") {
+  const attackText = card.damage
+    ? `공격력 ${card.damage} / `
+    : "";
+
+  const reflectText = card.reflectMode === "bounce"
+    ? "무속성 공격을 랜덤 튕김"
+    : "무속성 공격을 공격자에게 반사";
+
+  return `${attackText}${reflectText}`;
+}
+
+      if (card.type === "cleanse") {
+        return "모든 속성을 무속성으로 변경";
+      }
+
+      if (card.type === "trade") {
+        return "상대 랜덤 카드 공개 후 구매";
+      }
+
+      if (card.type === "sell") {
+        return "선택한 카드를 상대에게 강제 판매";
+      }
+
+      if (card.type === "convert") {
+        return "HP/MP/돈 총합 재분배";
+      }
+
+      if (card.type === "poisonItem") {
+        return "자신 또는 상대에게 약물중독 부여";
+      }
+
+      if (card.type === "cure") {
+        return card.cureType === "basic"
+          ? "약독·중독·눈부심·실명 치료"
+          : "모든 상태이상 치료";
+      }
+
+      return "";
+    }
+
+    function selected(cardId) {
+      return selectedAttackId === cardId ||
+        selectedPlusIds.has(cardId) ||
+        selectedHealId === cardId ||
+        selectedTradeId === cardId ||
+        selectedSellId === cardId ||
+        selectedSoldCardId === cardId ||
+        selectedConvertId === cardId ||
+        selectedPoisonItemId === cardId ||
+        selectedCureId === cardId ||
+        selectedDefenseIds.has(cardId) ||
+        selectedReflectId === cardId ||
+        selectedCleanseId === cardId;
+    }
+
+    function clearNormal() {
+      selectedAttackId = null;
+      selectedPlusIds.clear();
+      selectedHealId = null;
+      selectedTradeId = null;
+      selectedSellId = null;
+      selectedSoldCardId = null;
+      selectedConvertId = null;
+      selectedPoisonItemId = null;
+      selectedCureId = null;
+      selectedManaHealId = null;
+      selectedMagicId = null;
+    }
+
+function clearExceptAttackAndPlus() {
+  selectedHealId = null;
+  selectedTradeId = null;
+  selectedSellId = null;
+  selectedSoldCardId = null;
+  selectedConvertId = null;
+  selectedPoisonItemId = null;
+  selectedCureId = null;
+}
+
+    function clearSelection() {
+      clearNormal();
+      selectedDefenseIds.clear();
+      selectedReflectId = null;
+      selectedCleanseId = null;
+      selectedManaHealId = null;
+      selectedMagicId = null;
+      render();
+    }
+
+    function safeTarget() {
+      const target = getPlayer(selectedTargetId);
+
+      if (target && target.hp > 0) {
+        return target.id;
+      }
+
+      const me = getMe();
+
+      if (me && me.hp > 0) {
+        return me.id;
+      }
+
+      return state.players.find(player => player.hp > 0)?.id || null;
+    }
+
+    function render() {
+      if (!state) return;
+
+      document.getElementById("roomText").innerText = state.roomCode;
+      document.getElementById("turnText").innerText = state.turnCount || 0;
+
+      let status = "";
+
+      if (!state.started) {
+        status = state.isPlayer ? "참가 완료 - 시작 대기" : "대기 중";
+      } else if (state.pendingAttack) {
+        status = "방어/반사 처리 중";
+      } else if (state.pendingTrade) {
+        status = "거래 결정 중";
+      } else {
+        status = `${state.currentTurnNickname}의 턴`;
+      }
+
+      if (state.isSpectator && state.started) {
+        status += " / 관전 중";
+      }
+
+      document.getElementById("statusText").innerText = status;
+
+      const canJoin =
+        !state.started &&
+        !state.isPlayer &&
+        state.players.length < 2;
+
+      document.getElementById("joinButton").disabled = !canJoin;
+      document.getElementById("startButton").disabled = !state.canStart;
+
+      document.getElementById("winnerText").innerText =
+        !state.started && state.winnerNickname
+          ? `최근 승리자: ${state.winnerNickname}`
+          : "";
+
+      if (!state.players.some(player => player.id === selectedTargetId && player.hp > 0)) {
+        const me = getMe();
+        const other = state.players.find(
+          player => player.hp > 0 && (!me || player.id !== me.id)
+        );
+
+        selectedTargetId = other?.id || me?.id || null;
+      }
+
+      renderPlayers();
+      renderBoard();
+      renderHand();
+      renderTrade();
+      renderChat();
+    }
+
+    function renderPlayers() {
+      const box = document.getElementById("playerList");
+      box.innerHTML = "";
+
+      state.players.forEach(player => {
+        const div = document.createElement("div");
+        div.className = "player-row";
+
+        if (player.id === selectedTargetId) div.classList.add("target");
+        if (player.id === state.currentTurnId) div.classList.add("turn");
+        if (player.isMe) div.classList.add("me");
+
+        div.onclick = () => {
+          selectedTargetId = player.id;
+          render();
+        };
+
+        div.innerHTML = `
+          <b>${player.order}. ${player.nickname}</b>
+${player.isMe ? "(나)" : ""}
+${player.isHost ? " 👑" : ""}
+${
+  getMoneyWarning(player.id)
+    ? `<div class="money-warning">돈 부족!</div>`
+    : ""
+}
+${
+  getDeathWarning(player.id)
+    ? `<div class="death-warning">독살!</div>`
+    : ""
+}
+          HP <span class="hp">${player.hp}</span> |
+          MP <span class="mp">${player.mp}</span> |
+          돈 <span class="money">${player.money}</span>
+          <br>
+          <div class="status">
+  상태이상:
+  ${renderStatusIcons(player.status)}
+</div>
+          <br>
+          <span class="small">카드 ${player.cardCount}장</span>
+        `;
+
+        box.appendChild(div);
+      });
+
+      const spectators = document.getElementById("spectatorList");
+
+      spectators.innerHTML =
+        state.spectators?.length
+          ? state.spectators
+              .map(s => `<div class="small">${s.nickname}</div>`)
+              .join("")
+          : `<div class="small">없음</div>`;
+    }
+
+    function renderBoard() {
+      const leftList = document.getElementById("leftList");
+      const rightList = document.getElementById("rightList");
+      const leftTitle = document.getElementById("leftTitle");
+      const rightTitle = document.getElementById("rightTitle");
+      const arrow = document.getElementById("arrow");
+
+      leftList.innerHTML = "";
+      rightList.innerHTML = "";
+      arrow.innerText = "";
+
+      if (!state.started) {
+        leftTitle.innerText = "준비 상태";
+        rightTitle.innerText = "참가 대기";
+        leftList.innerHTML = `
+          <div class="effect-box">
+            참가자 ${state.players.length}명
+          </div>
+        `;
+        return;
+      }
+
+      if (state.pendingAttack) {
+        leftTitle.innerText = state.pendingAttack.attackerNickname;
+        rightTitle.innerText = state.pendingAttack.defenderNickname;
+        arrow.innerText = "→";
+
+        leftList.innerHTML = `
+          <div class="selected-card">
+            <b>${state.pendingAttack.attackName}</b><br>
+            속성: ${elementName(state.pendingAttack.element)}<br>
+            피해: ${state.pendingAttack.damage}
+            ${
+              state.pendingAttack.poisonStage
+                ? `<br>독: ${poisonName(state.pendingAttack.poisonStage)}`
+                : ""
+            }
+          </div>
+        `;
+
+        if (isDefenseTurn()) {
+          const cards = [];
+
+          selectedDefenseIds.forEach(id => {
+            cards.push(selectedCardHtml(getCard(id), "방어"));
+          });
+
+          if (selectedReflectId) {
+            cards.push(selectedCardHtml(getCard(selectedReflectId), "반사"));
+          }
+
+          if (selectedCleanseId) {
+            cards.push(selectedCardHtml(getCard(selectedCleanseId), "속성 제거"));
+          }
+
+          rightList.innerHTML = cards.join("") ||
+            `<div class="effect-box">방어/반사 카드를 선택하세요.<br>빈 공간 클릭으로 그냥 맞기</div>`;
+        } else {
+          rightList.innerHTML = `<div class="effect-box">방어 선택 대기 중</div>`;
+        }
+
+        return;
+      }
+
+      const current = getPlayer(state.currentTurnId);
+      const target = getPlayer(safeTarget());
+
+      leftTitle.innerText = current?.nickname || "현재 턴";
+      rightTitle.innerText = target?.nickname || "대상";
+
+      if (selectedConvertId) {
+        leftList.innerHTML = convertBox();
+      } else {
+        const cards = [];
+
+        if (selectedAttackId) cards.push(selectedCardHtml(getCard(selectedAttackId), "공격"));
+        selectedPlusIds.forEach(id => cards.push(selectedCardHtml(getCard(id), "+카드")));
+        if (selectedHealId) cards.push(selectedCardHtml(getCard(selectedHealId), "회복"));
+        if (selectedTradeId) cards.push(selectedCardHtml(getCard(selectedTradeId), "거래"));
+        if (selectedSellId) cards.push(selectedCardHtml(getCard(selectedSellId), "판매권"));
+        if (selectedSoldCardId) cards.push(selectedCardHtml(getCard(selectedSoldCardId), "판매 카드"));
+        if (selectedPoisonItemId) cards.push(selectedCardHtml(getCard(selectedPoisonItemId), "약물중독"));
+        if (selectedCureId) cards.push(selectedCardHtml(getCard(selectedCureId), "치료"));
+       if (selectedMagicId) {
+  cards.push(
+    selectedCardHtml(
+      getCard(selectedMagicId),
+      "마법"
+    )
+  );
+}
+       if (selectedManaHealId) {
+  cards.push(
+    selectedCardHtml(
+      getCard(selectedManaHealId),
+      "마나 회복"
+    )
+  );
+}
+        
+        leftList.innerHTML = cards.join("") ||
+          `<div class="effect-box">카드를 선택하세요.</div>`;
+      }
+
+      if (target) {
+        rightList.innerHTML = `
+          <div class="effect-box">
+            대상: ${target.nickname}
+            ${target.id === current?.id ? "<br>자기 자신" : ""}
+          </div>
+        `;
+
+        if (target.id !== current?.id) {
+          arrow.innerText = "→";
+        }
+      }
+    }
+
+    function selectedCardHtml(card, label) {
+      if (!card) return "";
+
+      return `
+        <div class="selected-card">
+          <b>${card.name}</b> (${label})<br>
+          ${cardDetail(card)}<br>
+          가격: <span class="price">${card.price || 0}</span>
+        </div>
+      `;
+    }
+
+    function convertBox() {
+      const me = getMe();
+
+      if (!me) return "";
+
+      const total = me.hp + me.mp + me.money;
+      const inputTotal =
+        Number(convertValues.hp) +
+        Number(convertValues.mp) +
+        Number(convertValues.money);
+
+      return `
+        <div class="selected-card" onclick="event.stopPropagation()">
+          <b>자원 재분배</b><br>
+          현재 총합: ${total}<br>
+          입력 총합: ${inputTotal}
+
+          <div class="resource-box">
+            HP
+            <input type="number" min="0" value="${convertValues.hp}"
+              oninput="setConvert('hp', this.value)">
+            MP
+            <input type="number" min="0" value="${convertValues.mp}"
+              oninput="setConvert('mp', this.value)">
+            돈
+            <input type="number" min="0" value="${convertValues.money}"
+              oninput="setConvert('money', this.value)">
+          </div>
+        </div>
+      `;
+    }
+
+    function setConvert(key, value) {
+      convertValues[key] = Number(value || 0);
+      renderBoard();
+    }
+
+    function renderHand() {
+      const grid = document.getElementById("handGrid");
+      grid.innerHTML = "";
+
+      if (!state.started) {
+        grid.innerHTML = `<div class="effect-box">게임 시작 전입니다.</div>`;
+        return;
+      }
+
+      const me = getMe();
+
+      if (!me) {
+        grid.innerHTML = `<div class="effect-box">관전자입니다.</div>`;
+        return;
+      }
+
+      me.hand.forEach(card => {
+        const div = document.createElement("div");
+        div.className = `card ${card.type}`;
+
+        if (selected(card.id)) div.classList.add("selected");
+        if (selectedSoldCardId === card.id) div.classList.add("sell-target");
+
+        div.onclick = event => {
+          event.stopPropagation();
+          cardClick(card);
+        };
+
+        div.innerHTML = `
+          <div class="card-name">${card.name}</div>
+          <div class="small">${cardTypeName(card)}</div>
+          ${card.element ? `<div>속성: ${elementName(card.element)}</div>` : ""}
+          <div>${cardDetail(card)}</div>
+          <div>가격: <span class="price">${card.price || 0}</span></div>
+          <br>
+          <div class="small">클릭하여 선택/해제</div>
+        `;
+
+        grid.appendChild(div);
+      });
+    }
+
+function cardClick(card) {
+  if (!state || !state.started || state.winnerId || state.isSpectator) {
+    return;
+  }
+
+  // 방어 차례
+  // 방어 차례
+if (
+  state.pendingAttack &&
+  state.pendingAttack.defenderId === state.myId
+) {
+  // 일반 방어 카드: 여러 장 선택 가능
+  if (card.type === "defense") {
+    if (selectedDefenseIds.has(card.id)) {
+      selectedDefenseIds.delete(card.id);
+    } else {
+      selectedDefenseIds.add(card.id);
+    }
+
+    selectedReflectId = null;
+    selectedMagicId = null;
+    render();
+    return;
+  }
+
+  // 패링 소드, 너나머검
+  if (
+    card.type === "reflect" &&
+    Number(card.damage) > 0
+  ) {
+    if (selectedReflectId === card.id) {
+      selectedReflectId = null;
+    } else {
+      selectedReflectId = card.id;
+    }
+
+    selectedDefenseIds.clear();
+    selectedMagicId = null;
+    render();
+    return;
+  }
+
+  // 무지개 반사
+  if (card.type === "rainbowReflect") {
+    if (selectedReflectId === card.id) {
+      selectedReflectId = null;
+    } else {
+      selectedReflectId = card.id;
+    }
+
+    selectedDefenseIds.clear();
+    selectedMagicId = null;
+    render();
+    return;
+  }
+
+  // 못맞췄지롱!
+  if (
+    card.type === "magic" &&
+    card.magicType === "miss"
+  ) {
+    selectedMagicId =
+      selectedMagicId === card.id ? null : card.id;
+
+    selectedDefenseIds.clear();
+    selectedReflectId = null;
+    render();
+    return;
+  }
+
+  // 속성 제거 카드
+  if (card.type === "cleanse") {
+    selectedCleanseId =
+      selectedCleanseId === card.id ? null : card.id;
+
+    render();
+    return;
+  }
+
+  return;
+}
+
+  if (!isMyTurn() || state.pendingAttack) {
+    return;
+  }
+
+  // 판매할 카드 선택
+  if (
+    selectedSellId &&
+    card.id !== selectedSellId &&
+    card.type !== "sell"
+  ) {
+    selectedSoldCardId =
+      selectedSoldCardId === card.id ? null : card.id;
+
+    render();
+    return;
+  }
+
+  // 일반 공격 카드 또는 공격 가능한 무기
+  if (
+    card.type === "attack" ||
+    (card.type === "reflect" && Number(card.damage) > 0)
+  ) {
+    const savedMagic =
+      selectedMagicId &&
+      (
+        getCard(selectedMagicId)?.magicType === "plus" ||
+        getCard(selectedMagicId)?.magicType === "doubleAttack"
+      )
+        ? selectedMagicId
+        : null;
+
+    const wasSelected = selectedAttackId === card.id;
+
+    clearNormal();
+
+    if (savedMagic) {
+      selectedMagicId = savedMagic;
+    }
+
+    if (!wasSelected) {
+      selectedAttackId = card.id;
+    }
+
+    render();
+    return;
+  }
+
+  // +카드 여러 장 선택
+  if (card.type === "plus") {
+    const savedAttack = selectedAttackId;
+    const savedMagic =
+      selectedMagicId &&
+      (
+        getCard(selectedMagicId)?.magicType === "plus" ||
+        getCard(selectedMagicId)?.magicType === "doubleAttack"
+      )
+        ? selectedMagicId
+        : null;
+
+    clearNormal();
+
+    selectedAttackId = savedAttack;
+
+    if (savedMagic) {
+      selectedMagicId = savedMagic;
+    }
+
+    if (selectedPlusIds.has(card.id)) {
+      selectedPlusIds.delete(card.id);
+    } else {
+      selectedPlusIds.add(card.id);
+    }
+
+    render();
+    return;
+  }
+
+  // 일반 마법 카드
+  if (card.type === "magic") {
+    // 못맞췄지롱!은 방어 차례에만 사용
+    if (card.magicType === "miss") {
+      return;
+    }
+
+    const wasSelected = selectedMagicId === card.id;
+
+    // 졸트라크와 따블로 간다는 공격 카드와 함께 사용 가능
+    if (
+      card.magicType === "plus" ||
+      card.magicType === "doubleAttack"
+    ) {
+      const savedAttack = selectedAttackId;
+      const savedPlus = new Set(selectedPlusIds);
+
+      clearNormal();
+
+      selectedAttackId = savedAttack;
+      selectedPlusIds = savedPlus;
+
+      if (!wasSelected) {
+        selectedMagicId = card.id;
+      }
+
+      render();
+      return;
+    }
+
+    clearNormal();
+
+    if (!wasSelected) {
+      selectedMagicId = card.id;
+    }
+
+    render();
+    return;
+  }
+
+  // 회복 카드
+  if (card.type === "heal") {
+    const wasSelected = selectedHealId === card.id;
+
+    clearNormal();
+
+    if (!wasSelected) {
+      selectedHealId = card.id;
+    }
+
+    render();
+    return;
+  }
+
+  // 마나 회복 카드
+  if (card.type === "manaHeal") {
+    const wasSelected = selectedManaHealId === card.id;
+
+    clearNormal();
+
+    if (!wasSelected) {
+      selectedManaHealId = card.id;
+    }
+
+    render();
+    return;
+  }
+
+  // 거래 카드
+  if (card.type === "trade") {
+    const wasSelected = selectedTradeId === card.id;
+
+    clearNormal();
+
+    if (!wasSelected) {
+      selectedTradeId = card.id;
+    }
+
+    render();
+    return;
+  }
+
+  // 판매권
+  if (card.type === "sell") {
+    const wasSelected = selectedSellId === card.id;
+
+    clearNormal();
+
+    if (!wasSelected) {
+      selectedSellId = card.id;
+    }
+
+    render();
+    return;
+  }
+
+  // 자원 재분배
+  if (card.type === "convert") {
+    const wasSelected = selectedConvertId === card.id;
+
+    clearNormal();
+
+    if (!wasSelected) {
+      selectedConvertId = card.id;
+
+      const me = getMe();
+
+      if (me) {
+        convertValues = {
+          hp: me.hp,
+          mp: me.mp,
+          money: me.money
+        };
+      }
+    }
+
+    render();
+    return;
+  }
+
+  // 약물중독 주사
+  if (card.type === "poisonItem") {
+    const wasSelected = selectedPoisonItemId === card.id;
+
+    clearNormal();
+
+    if (!wasSelected) {
+      selectedPoisonItemId = card.id;
+    }
+
+    render();
+    return;
+  }
+
+  // 치료제
+  if (card.type === "cure") {
+    const wasSelected = selectedCureId === card.id;
+
+    clearNormal();
+
+    if (!wasSelected) {
+      selectedCureId = card.id;
+    }
+
+    render();
+    return;
+  }
+}
+
+function decideAction() {
+  if (!state || !state.started || state.winnerId || state.isSpectator) {
+    return;
+  }
+
+  if (state.pendingTrade) {
+    return;
+  }
+
+  if (isDefenseTurn()) {
+    decideDefense();
+    return;
+  }
+
+  if (!isMyTurn() || state.pendingAttack) {
+    return;
+  }
+
+  const targetId = safeTarget();
+
+  // 마법을 가장 먼저 처리
+  if (selectedMagicId) {
+    const magicCard = getCard(selectedMagicId);
+
+    if (!magicCard) {
+      alert("마법 카드를 찾을 수 없습니다.");
+      return;
+    }
+
+    // 졸트라크와 따블로 간다!는 선택한 공격 카드와 함께 사용 가능
+    const needsAttackCard =
+      magicCard.magicType === "plus" ||
+      magicCard.magicType === "doubleAttack";
+
+    if (needsAttackCard && !selectedAttackId) {
+      // 졸트라크는 단독 사용 가능
+      if (magicCard.magicType !== "plus") {
+        alert("따블로 간다!는 공격 카드를 함께 선택하세요.");
+        return;
+      }
+    }
+
+    socket.emit("useMagic", {
+  magicCardId: selectedMagicId,
+  targetId,
+  attackCardId: selectedAttackId || null,
+  plusCardIds: Array.from(selectedPlusIds)
+});
+
+    clearSelection();
+    return;
+  }
+
+  // 일반 공격 또는 +카드만 공격
+  if (selectedAttackId || selectedPlusIds.size > 0) {
+    socket.emit("useAttack", {
+      attackCardId: selectedAttackId || null,
+      plusCardIds: Array.from(selectedPlusIds),
+      targetId
+    });
+
+    clearSelection();
+    return;
+  }
+
+  if (selectedHealId) {
+    socket.emit("useHeal", {
+      healCardId: selectedHealId,
+      targetId
+    });
+
+    clearSelection();
+    return;
+  }
+
+  if (selectedManaHealId) {
+    socket.emit("useManaHeal", {
+      manaHealCardId: selectedManaHealId
+    });
+
+    clearSelection();
+    return;
+  }
+
+  if (selectedPoisonItemId) {
+    socket.emit("usePoisonItem", {
+      cardId: selectedPoisonItemId,
+      targetId
+    });
+
+    clearSelection();
+    return;
+  }
+
+  if (selectedCureId) {
+    socket.emit("useCure", {
+      cardId: selectedCureId,
+      targetId
+    });
+
+    clearSelection();
+    return;
+  }
+
+  if (selectedTradeId) {
+    socket.emit("useTrade", {
+      tradeCardId: selectedTradeId,
+      targetId
+    });
+
+    clearSelection();
+    return;
+  }
+
+  if (selectedSellId && selectedSoldCardId) {
+    socket.emit("useSell", {
+      sellCardId: selectedSellId,
+      soldCardId: selectedSoldCardId,
+      targetId
+    });
+
+    clearSelection();
+    return;
+  }
+
+  if (selectedConvertId) {
+    const me = getMe();
+    const total = me.hp + me.mp + me.money;
+    const inputTotal =
+      Number(convertValues.hp) +
+      Number(convertValues.mp) +
+      Number(convertValues.money);
+
+    if (total !== inputTotal) {
+      alert(`자원 총합이 맞지 않습니다. 현재 ${total}, 입력 ${inputTotal}`);
+      return;
+    }
+
+    socket.emit("useConvert", {
+      convertCardId: selectedConvertId,
+      newHp: convertValues.hp,
+      newMp: convertValues.mp,
+      newMoney: convertValues.money
+    });
+
+    clearSelection();
+    return;
+  }
+
+  const hasAttack = getHand().some(card => card.type === "attack");
+
+  if (!hasAttack) {
+    socket.emit("drawIfNoAttack");
+  } else {
+    alert("사용할 카드를 선택하세요.");
+  }
+}
+
+    function decideDefense() {
+
+if (selectedMagicId) {
+    const magicCard = getCard(selectedMagicId);
+
+    if (
+      magicCard &&
+      magicCard.type === "magic" &&
+      magicCard.magicType === "miss"
+    ) {
+      socket.emit("respondDefense", {
+        defenseCardIds: [],
+        reflectCardId: null,
+        cleanseCardId: null,
+        magicCardId: selectedMagicId,
+        takeHit: false
+      });
+
+      clearSelection();
+      return;
+    }
+  }
+
+      if (selectedReflectId) {
+        socket.emit("respondDefense", {
+          defenseCardIds: [],
+          reflectCardId: selectedReflectId,
+          cleanseCardId: selectedCleanseId,
+          takeHit: false
+        });
+
+        clearSelection();
+        return;
+      }
+
+      if (selectedDefenseIds.size > 0) {
+        socket.emit("respondDefense", {
+          defenseCardIds: Array.from(selectedDefenseIds),
+          reflectCardId: null,
+          cleanseCardId: selectedCleanseId,
+          takeHit: false
+        });
+
+        clearSelection();
+        return;
+      }
+
+      if (confirm("방어하지 않고 공격을 맞을까요?")) {
+        socket.emit("respondDefense", {
+          defenseCardIds: [],
+          reflectCardId: null,
+          cleanseCardId: selectedCleanseId,
+          takeHit: true
+        });
+
+        clearSelection();
+      }
+    }
+
+    function renderTrade() {
+      const box = document.getElementById("tradeBox");
+
+      if (!state.pendingTrade) {
+        box.classList.add("hidden");
+        return;
+      }
+
+      box.classList.remove("hidden");
+
+      const trade = state.pendingTrade;
+      const card = trade.card;
+
+      document.getElementById("tradeInfo").innerHTML = `
+        ${trade.buyerNickname}이/가 ${trade.sellerNickname}의 카드 구매 결정<br>
+        카드: <b>${card?.name || "알 수 없음"}</b><br>
+        가격: <span class="price">${trade.price}</span>
+      `;
+
+      const mine = trade.buyerId === state.myId;
+
+      document.getElementById("buyButton").disabled = !mine;
+      document.getElementById("declineButton").disabled = !mine;
+    }
+
+    function respondTrade(buy) {
+      socket.emit("respondTrade", { buy });
+    }
+
+    function renderChat() {
+      const box = document.getElementById("chatBox");
+      const chats = state.chat || [];
+
+      box.innerHTML = chats.length
+        ? chats.map(chat =>
+            `<div class="chat-line">[${chat.time}] ${chat.nickname}: ${chat.message}</div>`
+          ).join("")
+        : `<div class="small">아직 채팅이 없습니다.</div>`;
+
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function sendChat() {
+      const input = document.getElementById("chatInput");
+      const message = input.value.trim();
+
+      if (!message) return;
+
+      socket.emit("sendChat", { message });
+      input.value = "";
+    }
+
+    socket.on("gameState", newState => {
+      state = newState;
+      render();
+    });
+
+    socket.on("errorMessage", message => {
+      alert(message);
+    });
+  </script>
+</body>
+</html>
