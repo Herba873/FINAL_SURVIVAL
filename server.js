@@ -2021,6 +2021,8 @@ if (usedPlusCards.length > 0) {
 
     player.mp += manaCard.mana;
 
+    
+
     room.log.push(
       `${player.nickname}이/가 ${manaCard.name}을 사용해 MP ${manaCard.mana}를 회복했습니다.`
     );
@@ -2442,6 +2444,12 @@ if (buy) {
       return;
     }
 
+let effectiveElement = pending.element || "none";
+
+if (hasCleanse) {
+  effectiveElement = "none";
+}
+
 
 const missMagicIndex = magicCardId
   ? defender.hand.findIndex(card =>
@@ -2490,12 +2498,6 @@ if (magicCardId) {
     if (reflectCardId && uniqueDefenseIds.length > 0) {
       socket.emit("errorMessage", "방어와 반사는 동시에 사용할 수 없습니다.");
       return;
-    }
-
-    let effectiveElement = pending.element || "none";
-
-    if (hasCleanse) {
-      effectiveElement = "none";
     }
 
     const selectedReflectCard = defender.hand.find(
