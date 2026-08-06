@@ -388,6 +388,15 @@ const magicCards = [
   mpCost: 10,
   price: 0,
   reusable: true
+},
+{
+  name: "싸이크리드 힐",
+  type: "magic",
+  magicType: "cure",
+  healType: "basic",
+  mpCost: 6,
+  price: 0,
+  reusable: true
 }
 ];
 
