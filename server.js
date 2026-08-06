@@ -337,7 +337,7 @@ const healCards = [
 
 const magicCards = [
   {
-    name: "마약 투여",
+    name: "무량꽁처",
     type: "magic",
     magicType: "drug",
     mpCost: 15,
@@ -345,7 +345,7 @@ const magicCards = [
     reusable: true
   },
   {
-    name: "따블로 간다!",
+    name: "따블 업 찬수",
     type: "magic",
     magicType: "doubleAttack",
     mpCost: 5,
@@ -353,7 +353,7 @@ const magicCards = [
     reusable: true
   },
   {
-    name: "못맞췄지롱!",
+    name: "로 아이다스",
     type: "magic",
     magicType: "miss",
     mpCost: 7,
