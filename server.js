@@ -600,8 +600,8 @@ function cardPrice(card) {
 function drawRandomCard() {
   const r = Math.random();
 
-  if (r < 0.24) {
-    // 공격 카드 24%
+  if (r < 0.27) {
+    // 공격 카드 27%
     return makeCard(
       attackCards[Math.floor(Math.random() * attackCards.length)]
     );
@@ -660,13 +660,13 @@ function drawRandomCard() {
       convertCards[Math.floor(Math.random() * convertCards.length)]
     );
 
-  } else if (r < 0.84) {
-    // 상태이상 아이템 4%
+  } else if (r < 0.85) {
+    // 상태이상 아이템 1%
     return makeCard(
       statusCards[Math.floor(Math.random() * statusCards.length)]
     );
 
-  } else if (r < 0.88) {
+  } else if (r < 0.89) {
     // 치료제 4%
     return makeCard(
       cureCards[Math.floor(Math.random() * cureCards.length)]
@@ -1130,7 +1130,15 @@ function getStateForViewer(room, viewerId) {
       targetId: room.pendingAction.targetId,
       userNickname: getPlayer(room, room.pendingAction.userId)?.nickname || "",
       targetNickname: getPlayer(room, room.pendingAction.targetId)?.nickname || "",
-      heal: room.pendingAction.heal
+      heal: room.pendingAction.heal,
+      amount: room.pendingAction.amount,
+      cardId: room.pendingAction.cardId,
+      cardName: room.pendingAction.cardName,
+      price: room.pendingAction.price,
+      sellerId: room.pendingAction.sellerId,
+      buyerId: room.pendingAction.buyerId,
+      soldCardId: room.pendingAction.soldCardId,
+      reflectedCount: room.pendingAction.reflectedCount || 0
     }
   : null,
     players: room.players.map((player, index) => ({
@@ -1988,7 +1996,7 @@ if (usedPlusCards.length > 0) {
     emitRoomState(room);
   });
 
-  socket.on("useManaHeal", ({ manaHealCardId }) => {
+   socket.on("useManaHeal", ({ manaHealCardId, targetId }) => {
     const roomCode = socket.data.roomCode;
     const room = rooms[roomCode];
 
@@ -1999,16 +2007,23 @@ if (usedPlusCards.length > 0) {
       return;
     }
 
-    const currentPlayer = room.players[room.turnIndex];
+    const user = room.players[room.turnIndex];
 
-    if (!currentPlayer || currentPlayer.id !== socket.id) {
+    if (!user || user.id !== socket.id) {
       socket.emit("errorMessage", "지금은 당신의 턴이 아닙니다.");
       return;
     }
 
-    const player = currentPlayer;
+    const target = room.players.find(
+      player => player.id === targetId && player.hp > 0
+    );
 
-    const cardIndex = player.hand.findIndex(
+    if (!target) {
+      socket.emit("errorMessage", "마나 회복 대상을 선택하세요.");
+      return;
+    }
+
+    const cardIndex = user.hand.findIndex(
       card => card.id === manaHealCardId && card.type === "manaHeal"
     );
 
@@ -2017,140 +2032,214 @@ if (usedPlusCards.length > 0) {
       return;
     }
 
-    const manaCard = player.hand[cardIndex];
+    const manaCard = user.hand[cardIndex];
 
-    player.mp += manaCard.mana;
+    // 자신에게 쓰면 즉시 적용
+    if (target.id === user.id) {
+      user.mp += manaCard.mana;
 
-    
+      room.log.push(
+        `${user.nickname}이/가 자신에게 ${manaCard.name}을 사용해 MP ${manaCard.mana}를 회복했습니다.`
+      );
+
+      consumeCard(user, cardIndex);
+      finishAction(room, user);
+      emitRoomState(room);
+      return;
+    }
+
+    // 상대에게 쓰면 대상의 빈 공간 결정 대기
+    room.pendingAction = {
+      type: "manaHeal",
+      userId: user.id,
+      targetId: target.id,
+      cardId: manaCard.id,
+      cardName: manaCard.name,
+      amount: manaCard.mana
+    };
 
     room.log.push(
-      `${player.nickname}이/가 ${manaCard.name}을 사용해 MP ${manaCard.mana}를 회복했습니다.`
+      `${user.nickname}이/가 ${target.nickname}에게 ${manaCard.name}을 사용하려 합니다.`
     );
 
-    // 마나 회복 카드는 일회용이므로 사용 후 제거
-    consumeCard(player, cardIndex);
+    room.log.push(
+      `${target.nickname}은/는 효과를 적용하거나 무지개 반사를 사용할 수 있습니다.`
+    );
 
-    finishAction(room, player);
     emitRoomState(room);
   });
 
   socket.on("usePoisonItem", ({ cardId, targetId }) => {
-    const roomCode = socket.data.roomCode;
-    const room = rooms[roomCode];
+  const roomCode = socket.data.roomCode;
+  const room = rooms[roomCode];
 
-    if (!room || !room.started || room.winner) return;
+  if (!room || !room.started || room.winner) return;
 
-    if (room.pendingAttack || room.pendingTrade) {
-      socket.emit("errorMessage", "현재 처리 중인 행동이 먼저 끝나야 합니다.");
-      return;
-    }
+  if (room.pendingAttack || room.pendingTrade || room.pendingAction) {
+    socket.emit("errorMessage", "현재 처리 중인 행동이 먼저 끝나야 합니다.");
+    return;
+  }
 
-    const currentPlayer = room.players[room.turnIndex];
+  const user = room.players[room.turnIndex];
 
-    if (!currentPlayer || currentPlayer.id !== socket.id) {
-      socket.emit("errorMessage", "지금은 당신의 턴이 아닙니다.");
-      return;
-    }
+  if (!user || user.id !== socket.id) {
+    socket.emit("errorMessage", "지금은 당신의 턴이 아닙니다.");
+    return;
+  }
 
-    const user = currentPlayer;
-    const target = room.players.find(player => player.id === targetId && player.hp > 0);
+  const target = room.players.find(
+    player => player.id === targetId && player.hp > 0
+  );
 
-    if (!target) {
-      socket.emit("errorMessage", "대상을 선택하세요.");
-      return;
-    }
+  if (!target) {
+    socket.emit("errorMessage", "대상을 선택하세요.");
+    return;
+  }
 
-    const cardIndex = user.hand.findIndex(card => card.id === cardId && card.type === "poisonItem");
+  const cardIndex = user.hand.findIndex(
+    card => card.id === cardId && card.type === "poisonItem"
+  );
 
-    if (cardIndex === -1) {
-      socket.emit("errorMessage", "약물중독 주사 카드를 선택하세요.");
-      return;
-    }
+  if (cardIndex === -1) {
+    socket.emit("errorMessage", "약물중독 주사 카드를 선택하세요.");
+    return;
+  }
 
-    room.log.push(`${user.nickname}이/가 ${target.nickname}에게 약물중독 주사를 사용했습니다.`);
+  const card = user.hand[cardIndex];
 
+  // 자신에게 사용하면 바로 적용
+  if (target.id === user.id) {
     applyDrugAddictionItem(room, target);
 
-    consumeCard(user, cardIndex);
+    room.log.push(
+      `${user.nickname}이/가 자신에게 ${card.name}을 사용했습니다.`
+    );
 
+    consumeCard(user, cardIndex);
     finishAction(room, user);
     emitRoomState(room);
-  });
+    return;
+  }
+
+  // 상대에게 사용하면 대상 결정 대기
+  room.pendingAction = {
+    type: "poisonItem",
+    userId: user.id,
+    targetId: target.id,
+    cardId: card.id,
+    cardName: card.name
+  };
+
+  room.log.push(
+    `${user.nickname}이/가 ${target.nickname}에게 ${card.name}을 사용하려 합니다.`
+  );
+
+  emitRoomState(room);
+});
 
   socket.on("useCure", ({ cardId, targetId }) => {
-    const roomCode = socket.data.roomCode;
-    const room = rooms[roomCode];
+  const roomCode = socket.data.roomCode;
+  const room = rooms[roomCode];
 
-    if (!room || !room.started || room.winner) return;
+  if (!room || !room.started || room.winner) return;
 
-    if (room.pendingAttack || room.pendingTrade) {
-      socket.emit("errorMessage", "현재 처리 중인 행동이 먼저 끝나야 합니다.");
-      return;
-    }
+  if (room.pendingAttack || room.pendingTrade || room.pendingAction) {
+    socket.emit("errorMessage", "현재 처리 중인 행동이 먼저 끝나야 합니다.");
+    return;
+  }
 
-    const currentPlayer = room.players[room.turnIndex];
+  const user = room.players[room.turnIndex];
 
-    if (!currentPlayer || currentPlayer.id !== socket.id) {
-      socket.emit("errorMessage", "지금은 당신의 턴이 아닙니다.");
-      return;
-    }
+  if (!user || user.id !== socket.id) {
+    socket.emit("errorMessage", "지금은 당신의 턴이 아닙니다.");
+    return;
+  }
 
-    const user = currentPlayer;
-    const target = room.players.find(player => player.id === targetId && player.hp > 0);
+  const target = room.players.find(
+    player => player.id === targetId && player.hp > 0
+  );
 
-    if (!target) {
-      socket.emit("errorMessage", "치료 대상을 선택하세요.");
-      return;
-    }
+  if (!target) {
+    socket.emit("errorMessage", "치료 대상을 선택하세요.");
+    return;
+  }
 
-    const cardIndex = user.hand.findIndex(card => card.id === cardId && card.type === "cure");
+  const cardIndex = user.hand.findIndex(
+    card => card.id === cardId && card.type === "cure"
+  );
 
-    if (cardIndex === -1) {
-      socket.emit("errorMessage", "치료제 카드를 선택하세요.");
-      return;
-    }
+  if (cardIndex === -1) {
+    socket.emit("errorMessage", "치료제 카드를 선택하세요.");
+    return;
+  }
 
-    const card = user.hand[cardIndex];
+  const card = user.hand[cardIndex];
 
+  // 자신에게 사용하면 바로 적용
+  if (target.id === user.id) {
     if (card.cureType === "basic") {
       cureBasic(target);
-      room.log.push(`${user.nickname}이/가 ${target.nickname}에게 해독 치료제를 사용했습니다. 약독, 중독, 눈부심, 실명을 치료합니다.`);
     } else {
       cureAll(target);
-      room.log.push(`${user.nickname}이/가 ${target.nickname}에게 만병통치약을 사용했습니다. 모든 상태이상을 치료합니다.`);
     }
 
-    consumeCard(user, cardIndex);
+    room.log.push(
+      `${user.nickname}이/가 자신에게 ${card.name}을 사용했습니다.`
+    );
 
+    consumeCard(user, cardIndex);
     finishAction(room, user);
     emitRoomState(room);
-  });
+    return;
+  }
 
-  socket.on("useTrade", ({ tradeCardId, targetId }) => {
+  // 상대에게 사용하면 대상 결정 대기
+  room.pendingAction = {
+    type: "cure",
+    userId: user.id,
+    targetId: target.id,
+    cardId: card.id,
+    cardName: card.name,
+    cureType: card.cureType
+  };
+
+  room.log.push(
+    `${user.nickname}이/가 ${target.nickname}에게 ${card.name}을 사용하려 합니다.`
+  );
+
+  emitRoomState(room);
+});
+
+    socket.on("useTrade", ({ tradeCardId, targetId }) => {
     const roomCode = socket.data.roomCode;
     const room = rooms[roomCode];
 
     if (!room || !room.started || room.winner) return;
 
-    if (room.pendingAttack || room.pendingTrade) {
+    if (room.pendingAttack || room.pendingTrade || room.pendingAction) {
       socket.emit("errorMessage", "현재 처리 중인 행동이 먼저 끝나야 합니다.");
       return;
     }
 
-    const currentPlayer = room.players[room.turnIndex];
+    const buyer = room.players[room.turnIndex];
 
-    if (!currentPlayer || currentPlayer.id !== socket.id) {
+    if (!buyer || buyer.id !== socket.id) {
       socket.emit("errorMessage", "지금은 당신의 턴이 아닙니다.");
       return;
     }
 
-    const buyer = currentPlayer;
     const seller = room.players.find(
-      player => player.id === targetId && player.id !== buyer.id && player.hp > 0
+      player =>
+        player.id === targetId &&
+        player.id !== buyer.id &&
+        player.hp > 0
     );
 
     if (!seller) {
-      socket.emit("errorMessage", "거래할 상대를 선택하세요. 자기 자신과는 거래할 수 없습니다.");
+      socket.emit(
+        "errorMessage",
+        "구매할 상대를 선택하세요. 자기 자신에게는 사용할 수 없습니다."
+      );
       return;
     }
 
@@ -2168,21 +2257,27 @@ if (usedPlusCards.length > 0) {
       return;
     }
 
-    const randomIndex = Math.floor(Math.random() * seller.hand.length);
-    const revealedCard = seller.hand[randomIndex];
-    const price = cardPrice(revealedCard);
-
-    consumeCard(buyer, tradeIndex);
-
-    room.pendingTrade = {
+    // 거래 제안서 자체는 아직 소모하지 않음.
+    // 대상이 일반 결정하거나, 반사 체인이 끝난 뒤에 소모됨.
+    room.pendingAction = {
+      type: "tradeRequest",
+      sourceUserId: buyer.id,
+      userId: buyer.id,
       buyerId: buyer.id,
       sellerId: seller.id,
-      cardId: revealedCard.id,
-      price
+      targetId: seller.id,
+      cardId: tradeCardId,
+      cardName: buyer.hand[tradeIndex].name,
+      reflectedCount: 0
     };
 
-    room.log.push(`${buyer.nickname}이/가 ${seller.nickname}에게 거래를 제안했습니다.`);
-    room.log.push(`${seller.nickname}의 랜덤 카드가 공개되었습니다: ${revealedCard.name}, 가격 ${price}돈`);
+    room.log.push(
+      `${buyer.nickname}이/가 ${seller.nickname}에게 구매를 시도했습니다.`
+    );
+
+    room.log.push(
+      `${seller.nickname}은/는 빈 공간을 클릭해 카드 공개를 허용하거나 무지개 반사를 사용할 수 있습니다.`
+    );
 
     emitRoomState(room);
   });
@@ -2247,32 +2342,33 @@ if (buy) {
     emitRoomState(room);
   });
 
-  socket.on("useSell", ({ sellCardId, targetId, soldCardId }) => {
+    socket.on("useSell", ({ sellCardId, targetId, soldCardId }) => {
     const roomCode = socket.data.roomCode;
     const room = rooms[roomCode];
 
     if (!room || !room.started || room.winner) return;
 
-    if (room.pendingAttack || room.pendingTrade) {
+    if (room.pendingAttack || room.pendingTrade || room.pendingAction) {
       socket.emit("errorMessage", "현재 처리 중인 행동이 먼저 끝나야 합니다.");
       return;
     }
 
-    const currentPlayer = room.players[room.turnIndex];
+    const seller = room.players[room.turnIndex];
 
-    if (!currentPlayer || currentPlayer.id !== socket.id) {
+    if (!seller || seller.id !== socket.id) {
       socket.emit("errorMessage", "지금은 당신의 턴이 아닙니다.");
       return;
     }
 
-    const seller = currentPlayer;
-
     const buyer = room.players.find(
-      player => player.id === targetId && player.id !== seller.id && player.hp > 0
+      player =>
+        player.id === targetId &&
+        player.id !== seller.id &&
+        player.hp > 0
     );
 
     if (!buyer) {
-      socket.emit("errorMessage", "판매할 상대를 선택하세요. 자기 자신에게는 판매할 수 없습니다.");
+      socket.emit("errorMessage", "판매할 상대를 선택하세요.");
       return;
     }
 
@@ -2281,38 +2377,44 @@ if (buy) {
     );
 
     if (sellIndex === -1) {
-      socket.emit("errorMessage", "암시장 판매권 카드를 선택하세요.");
+      socket.emit("errorMessage", "암시장 판매권을 선택하세요.");
       return;
     }
 
-    const soldIndex = seller.hand.findIndex(card => card.id === soldCardId);
+    const soldIndex = seller.hand.findIndex(
+      card => card.id === soldCardId
+    );
 
-    if (soldIndex === -1) {
-      socket.emit("errorMessage", "판매할 카드를 선택하세요.");
-      return;
-    }
-
-    if (soldIndex === sellIndex) {
-      socket.emit("errorMessage", "암시장 판매권 자체는 판매할 수 없습니다.");
+    if (soldIndex === -1 || soldIndex === sellIndex) {
+      socket.emit("errorMessage", "판매할 카드를 올바르게 선택하세요.");
       return;
     }
 
     const soldCard = seller.hand[soldIndex];
-    const price = cardPrice(soldCard);
+
+    // 판매권은 사용 시 소모. 판매할 카드는 최종 결정 전까지 이동하지 않음.
+    consumeCard(seller, sellIndex);
+
+    room.pendingAction = {
+      type: "sellRequest",
+      sourceUserId: seller.id,
+      userId: seller.id,
+      sellerId: seller.id,
+      buyerId: buyer.id,
+      targetId: buyer.id,
+      soldCardId: soldCard.id,
+      cardName: soldCard.name,
+      price: cardPrice(soldCard),
+      reflectedCount: 0
+    };
 
     room.log.push(
-      `${seller.nickname}이/가 ${buyer.nickname}에게 ${soldCard.name} 카드를 강제로 판매했습니다. 가격: ${price}`
+      `${seller.nickname}이/가 ${buyer.nickname}에게 ${soldCard.name} 카드를 판매하려 합니다.`
     );
 
-    forcePayCardPrice(room, buyer, seller, price);
-
-    buyer.hand.push(soldCard);
-
-    consumeCards(seller, [sellIndex, soldIndex]);
-
-    if (!room.winner) {
-      finishAction(room, seller);
-    }
+    room.log.push(
+      `${buyer.nickname}은/는 빈 공간을 클릭해 판매를 적용하거나 무지개 반사를 사용할 수 있습니다.`
+    );
 
     emitRoomState(room);
   });
@@ -2720,7 +2822,7 @@ if (reflectCard.reflectMode === "bounce") {
     socket.emit("errorMessage", "방어 카드, 반사 카드, 속성 제거 카드, 또는 그냥 맞기를 선택하세요.");
   });
 
- socket.on("respondTargetAction", ({ accept }) => {
+    socket.on("respondTargetAction", ({ rainbowReflectCardId }) => {
     const roomCode = socket.data.roomCode;
     const room = rooms[roomCode];
 
@@ -2729,38 +2831,341 @@ if (reflectCard.reflectMode === "bounce") {
     const action = room.pendingAction;
 
     if (!action) {
-      socket.emit("errorMessage", "결정할 행동이 없습니다.");
+      socket.emit("errorMessage", "결정할 효과가 없습니다.");
       return;
     }
 
     if (action.targetId !== socket.id) {
-      socket.emit("errorMessage", "대상 플레이어만 결정할 수 있습니다.");
+      socket.emit("errorMessage", "현재 효과 대상만 결정할 수 있습니다.");
       return;
     }
 
-    const user = getPlayer(room, action.userId);
-    const target = getPlayer(room, action.targetId);
-
-    if (!user || !target) return;
-
-    const healIndex = user.hand.findIndex(
-      card => card.id === action.healCardId && card.type === "heal"
+    const sourceUser = getPlayer(
+      room,
+      action.sourceUserId || action.userId
     );
 
-    if (healIndex === -1) {
-      room.log.push("회복 카드가 사라져 행동이 취소되었습니다.");
+    const target = getPlayer(room, action.targetId);
+
+    if (!sourceUser || !target) {
       room.pendingAction = null;
-      finishAction(room, user);
       emitRoomState(room);
       return;
     }
 
-    
+    // ------------------------------------------------
+    // 판매 요청
+    // 판매할 카드는 그대로 유지하고, 무지개 반사 시 역할만 반전
+    // ------------------------------------------------
+    if (action.type === "sellRequest") {
+      const originalCardOwner = getPlayer(
+        room,
+        action.sourceUserId
+      );
+
+      const currentSeller = getPlayer(
+        room,
+        action.sellerId
+      );
+
+      const currentBuyer = getPlayer(
+        room,
+        action.buyerId
+      );
+
+      if (!originalCardOwner || !currentSeller || !currentBuyer) {
+        room.pendingAction = null;
+        emitRoomState(room);
+        return;
+      }
+
+      // 무지개 반사: 판매할 카드는 그대로, 판매자/구매자만 반전
+      if (rainbowReflectCardId) {
+        const rainbowIndex = target.hand.findIndex(card =>
+          card.id === rainbowReflectCardId &&
+          card.type === "rainbowReflect"
+        );
+
+        if (rainbowIndex === -1) {
+          socket.emit("errorMessage", "무지개 반사 카드를 찾을 수 없습니다.");
+          return;
+        }
+
+        const rainbowCard = target.hand[rainbowIndex];
+
+        consumeCard(target, rainbowIndex);
+
+        room.pendingAction = {
+          ...action,
+          sellerId: currentBuyer.id,
+          buyerId: currentSeller.id,
+          targetId: currentSeller.id,
+          reflectedCount: (action.reflectedCount || 0) + 1
+        };
+
+        room.log.push(
+          `${target.nickname}이/가 ${rainbowCard.name}으로 판매 효과를 반사했습니다.`
+        );
+
+        emitRoomState(room);
+        return;
+      }
+
+      // 빈 공간 클릭: 현재 구매자가 카드값 지불
+      const soldCardIndex = originalCardOwner.hand.findIndex(
+        card => card.id === action.soldCardId
+      );
+
+      if (soldCardIndex === -1) {
+        room.log.push("판매할 카드가 사라져 판매가 취소되었습니다.");
+        room.pendingAction = null;
+
+        if (!room.winner) {
+          finishAction(room, originalCardOwner);
+        }
+
+        emitRoomState(room);
+        return;
+      }
+
+      const soldCard = originalCardOwner.hand[soldCardIndex];
+      const price = action.price || cardPrice(soldCard);
+
+      forcePayCardPrice(room, currentBuyer, currentSeller, price);
+
+      // 최종 구매자가 원래 카드 소유자와 다르면 카드 이동
+      if (currentBuyer.id !== originalCardOwner.id) {
+        originalCardOwner.hand.splice(soldCardIndex, 1);
+        currentBuyer.hand.push(soldCard);
+      }
+
+      room.log.push(
+        `${currentBuyer.nickname}이/가 ${currentSeller.nickname}에게 ` +
+        `${soldCard.name} 카드값 ${price}을 지불했습니다.`
+      );
+
+      room.log.push(
+        `${soldCard.name} 카드의 판매 처리가 완료되었습니다.`
+      );
+
+      room.pendingAction = null;
+
+      if (!room.winner) {
+        finishAction(room, originalCardOwner);
+      }
+
+      emitRoomState(room);
+      return;
+    }
+
+    // ------------------------------------------------
+    // 구매 요청
+    // 카드 공개 전 대상이 무지개 반사 가능
+    // ------------------------------------------------
+    if (action.type === "tradeRequest") {
+      const buyer = getPlayer(room, action.buyerId);
+      const seller = getPlayer(room, action.sellerId);
+
+      if (!buyer || !seller) {
+        room.pendingAction = null;
+        emitRoomState(room);
+        return;
+      }
+
+      // 무지개 반사: 구매자와 판매자 역할 반전
+      if (rainbowReflectCardId) {
+        const rainbowIndex = target.hand.findIndex(card =>
+          card.id === rainbowReflectCardId &&
+          card.type === "rainbowReflect"
+        );
+
+        if (rainbowIndex === -1) {
+          socket.emit("errorMessage", "무지개 반사 카드를 찾을 수 없습니다.");
+          return;
+        }
+
+        const rainbowCard = target.hand[rainbowIndex];
+
+        consumeCard(target, rainbowIndex);
+
+        room.pendingAction = {
+          ...action,
+          buyerId: seller.id,
+          sellerId: buyer.id,
+          targetId: buyer.id,
+          reflectedCount: (action.reflectedCount || 0) + 1
+        };
+
+        room.log.push(
+          `${target.nickname}이/가 ${rainbowCard.name}으로 구매 효과를 반사했습니다.`
+        );
+
+        emitRoomState(room);
+        return;
+      }
+
+      // 일반 결정: 현재 판매자의 랜덤 카드 공개
+      if (seller.hand.length === 0) {
+        room.log.push(`${seller.nickname}의 패가 없어 구매가 취소되었습니다.`);
+        room.pendingAction = null;
+
+        if (!room.winner) {
+          finishAction(room, buyer);
+        }
+
+        emitRoomState(room);
+        return;
+      }
+
+      const randomIndex = Math.floor(Math.random() * seller.hand.length);
+      const revealedCard = seller.hand[randomIndex];
+
+      room.pendingTrade = {
+        buyerId: buyer.id,
+        sellerId: seller.id,
+        cardId: revealedCard.id,
+        price: cardPrice(revealedCard)
+      };
+
+      room.pendingAction = null;
+
+      room.log.push(
+        `${seller.nickname}의 랜덤 카드가 공개되었습니다: ` +
+        `${revealedCard.name}, 가격 ${cardPrice(revealedCard)}돈`
+      );
+
+      emitRoomState(room);
+      return;
+    }
+
+    // ------------------------------------------------
+    // 회복 / 마나 회복 / 약물중독 / 치료제
+    // 무지개 반사 시 효과 대상만 원래 사용자에게 반사
+    // ------------------------------------------------
+    if (rainbowReflectCardId) {
+      const rainbowIndex = target.hand.findIndex(card =>
+        card.id === rainbowReflectCardId &&
+        card.type === "rainbowReflect"
+      );
+
+      if (rainbowIndex === -1) {
+        socket.emit("errorMessage", "무지개 반사 카드를 찾을 수 없습니다.");
+        return;
+      }
+
+      const rainbowCard = target.hand[rainbowIndex];
+
+      consumeCard(target, rainbowIndex);
+
+      room.pendingAction = {
+        ...action,
+        sourceUserId: sourceUser.id,
+        targetId: sourceUser.id,
+        reflectedCount: (action.reflectedCount || 0) + 1
+      };
+
+      room.log.push(
+        `${target.nickname}이/가 ${rainbowCard.name}으로 효과를 ${sourceUser.nickname}에게 반사했습니다.`
+      );
+
+      emitRoomState(room);
+      return;
+    }
+
+    // HP 회복
+    if (action.type === "heal") {
+      const cardId = action.cardId || action.healCardId;
+
+      const healIndex = sourceUser.hand.findIndex(card =>
+        card.id === cardId &&
+        card.type === "heal"
+      );
+
+      if (healIndex === -1) {
+        room.log.push("회복 카드가 없어 효과가 취소되었습니다.");
+      } else {
+        const amount = action.amount || action.heal || 0;
+
+        target.hp += amount;
+
+        room.log.push(
+          `${target.nickname}이/가 ${action.cardName || action.healCardName} 효과로 ` +
+          `HP ${amount}을 회복했습니다.`
+        );
+
+        consumeCard(sourceUser, healIndex);
+      }
+    }
+
+    // MP 회복
+    else if (action.type === "manaHeal") {
+      const manaIndex = sourceUser.hand.findIndex(card =>
+        card.id === action.cardId &&
+        card.type === "manaHeal"
+      );
+
+      if (manaIndex === -1) {
+        room.log.push("마나 회복 카드가 없어 효과가 취소되었습니다.");
+      } else {
+        target.mp += action.amount;
+
+        room.log.push(
+          `${target.nickname}이/가 ${action.cardName} 효과로 ` +
+          `MP ${action.amount}을 회복했습니다.`
+        );
+
+        consumeCard(sourceUser, manaIndex);
+      }
+    }
+
+    // 약물중독 주사
+    else if (action.type === "poisonItem") {
+      const poisonIndex = sourceUser.hand.findIndex(card =>
+        card.id === action.cardId &&
+        card.type === "poisonItem"
+      );
+
+      if (poisonIndex === -1) {
+        room.log.push("약물중독 주사 카드가 없어 효과가 취소되었습니다.");
+      } else {
+        applyDrugAddictionItem(room, target);
+
+        room.log.push(
+          `${target.nickname}에게 약물중독 주사 효과가 적용되었습니다.`
+        );
+
+        consumeCard(sourceUser, poisonIndex);
+      }
+    }
+
+    // 치료제
+    else if (action.type === "cure") {
+      const cureIndex = sourceUser.hand.findIndex(card =>
+        card.id === action.cardId &&
+        card.type === "cure"
+      );
+
+      if (cureIndex === -1) {
+        room.log.push("치료제 카드가 없어 효과가 취소되었습니다.");
+      } else {
+        if (action.cureType === "basic") {
+          cureBasic(target);
+        } else {
+          cureAll(target);
+        }
+
+        room.log.push(
+          `${target.nickname}이/가 ${action.cardName}의 치료 효과를 받았습니다.`
+        );
+
+        consumeCard(sourceUser, cureIndex);
+      }
+    }
 
     room.pendingAction = null;
 
     if (!room.winner) {
-      finishAction(room, user);
+      finishAction(room, sourceUser);
     }
 
     emitRoomState(room);

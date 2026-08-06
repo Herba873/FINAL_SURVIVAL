@@ -989,6 +989,86 @@ ${
         return;
       }
 
+// 회복/아이템 등 상대 대상 효과 대기 화면
+if (state.pendingAction) {
+  const action = state.pendingAction;
+  const isTarget = action.targetId === state.myId;
+
+  leftTitle.innerText = action.userNickname;
+  rightTitle.innerText = action.targetNickname;
+  arrow.innerText = "→";
+
+  let actionName = "효과";
+  let actionText = "";
+
+  if (action.type === "heal") {
+    actionName = "HP 회복";
+    actionText = `HP +${action.heal || action.amount || 0}`;
+  } else if (action.type === "manaHeal") {
+    actionName = "마나 회복";
+    actionText = `MP +${action.amount || 0}`;
+  } else if (action.type === "poisonItem") {
+    actionName = "약물중독 주사";
+    actionText = "약물중독 상태이상 부여";
+  }
+else if (action.type === "cure") {
+  actionName = action.cardName || "치료제";
+
+  if (action.cureType === "basic") {
+    actionText = "약독 · 중독 · 눈부심 · 실명 치료";
+  } else {
+    actionText = "모든 상태이상 치료";
+  }
+}
+
+else if (action.type === "sellRequest") {
+  actionName = "강제 판매";
+  actionText = `${action.cardName} / 가격 ${action.price}돈`;
+}
+
+else if (action.type === "tradeRequest") {
+  actionName = "구매 요청";
+  actionText = "랜덤 카드 공개 전 결정 대기";
+}
+
+  leftList.innerHTML = `
+    <div class="selected-card">
+      <b>${actionName}</b><br>
+      <span class="small">${actionText}</span>
+    </div>
+  `;
+
+  if (isTarget) {
+    const rainbowCard = selectedReflectId
+      ? getCard(selectedReflectId)
+      : null;
+
+    rightList.innerHTML = rainbowCard
+      ? `
+        <div class="selected-card">
+          <b>${rainbowCard.name}</b><br>
+          <span class="small">효과를 ${action.userNickname}에게 반사</span>
+        </div>
+      `
+      : `
+        <div class="effect-box">
+          효과 대기 중<br>
+          빈 공간 클릭: 효과 적용<br>
+          무지개 반사 선택 후 빈 공간 클릭: 효과 반사
+        </div>
+      `;
+  } else {
+    rightList.innerHTML = `
+      <div class="effect-box">
+        ${action.targetNickname}의 결정 대기 중
+      </div>
+    `;
+  }
+
+  return;
+}
+
+
       if (state.pendingAttack) {
         leftTitle.innerText = state.pendingAttack.attackerNickname;
         rightTitle.innerText = state.pendingAttack.defenderNickname;
@@ -1177,6 +1257,22 @@ ${
     }
 
 function cardClick(card) {
+
+ // 상대 효과를 받는 중: 무지개 반사만 선택 가능
+  if (
+    state.pendingAction &&
+    state.pendingAction.targetId === state.myId
+  ) {
+    if (card.type === "rainbowReflect") {
+      selectedReflectId =
+        selectedReflectId === card.id ? null : card.id;
+
+      render();
+    }
+
+    return;
+  }
+
   if (!state || !state.started || state.winnerId || state.isSpectator) {
     return;
   }
@@ -1489,6 +1585,19 @@ function decideAction() {
     return;
   }
 
+  // 상대에게 사용한 회복/마나 회복 효과를 받는 차례
+  if (
+    state.pendingAction &&
+    state.pendingAction.targetId === state.myId
+  ) {
+    socket.emit("respondTargetAction", {
+      rainbowReflectCardId: selectedReflectId || null
+    });
+
+    clearSelection();
+    return;
+  }
+
   if (state.pendingTrade) {
     return;
   }
@@ -1560,13 +1669,14 @@ function decideAction() {
   }
 
   if (selectedManaHealId) {
-    socket.emit("useManaHeal", {
-      manaHealCardId: selectedManaHealId
-    });
+  socket.emit("useManaHeal", {
+    manaHealCardId: selectedManaHealId,
+    targetId: safeTarget()
+  });
 
-    clearSelection();
-    return;
-  }
+  clearSelection();
+  return;
+}
 
   if (selectedPoisonItemId) {
     socket.emit("usePoisonItem", {
